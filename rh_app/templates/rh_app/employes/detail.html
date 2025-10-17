@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Détail employé{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <h2>{{ employe_obj.get_full_name }}</h2>
+    <div class="card mb-3">
+        <div class="card-body">
+            <p><strong>Matricule:</strong> {{ employe_obj.matricule }}</p>
+            <p><strong>Email:</strong> {{ employe_obj.email }}</p>
+            <p><strong>Poste:</strong> {{ employe_obj.poste }}</p>
+            <p><strong>Département:</strong> {{ employe_obj.departement }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

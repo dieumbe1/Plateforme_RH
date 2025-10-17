@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Tableau de bord RH{% endblock %}
+
+{% block content %}
+<div class="row py-4">
+    <div class="col-md-3">
+        <div class="sidebar">
+            <h5 class="p-3 text-muted">Menu RH</h5>
+            <nav class="nav flex-column">
+                <a class="nav-link active" href="{% url 'dashboard_rh' %}">
+                    <i class="bi bi-speedometer2"></i> Tableau de bord
+                </a>
+                <a class="nav-link" href="{% url 'liste_employes' %}">
+                    <i class="bi bi-people"></i> Employés
+                </a>
+                <a class="nav-link" href="{% url 'liste_formations' %}">
+                    <i class="bi bi-book"></i> Formations
+                </a>
+                <a class="nav-link" href="{% url 'liste_conges' %}">
+                    <i class="bi bi-calendar-check"></i> Congés
+                </a>
+                <a class="nav-link" href="{% url 'liste_contrats' %}">
+                    <i class="bi bi-file-earmark-text"></i> Contrats
+                </a>
+                <a class="nav-link" href="{% url 'liste_salaires' %}">
+                    <i class="bi bi-cash"></i> Salaires
+                </a>
+                <a class="nav-link" href="{% url 'liste_presences' %}">
+                    <i class="bi bi-clock-history"></i> Présences
+                </a>
+            </nav>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <h2 class="mb-4">Tableau de bord - Responsable RH</h2>
+        
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card text-white" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-people"></i> Employés</h5>
+                        <h2 class="mb-0">{{ total_employes }}</h2>
+                        <small>Total employés</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card text-white" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-calendar-x"></i> Congés</h5>
+                        <h2 class="mb-0">{{ conges_en_attente }}</h2>
+                        <small>En attente de validation</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card text-white" style="background: linear-gradient(135deg, #4facfe, #00f2fe);">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-book"></i> Formations</h5>
+                        <h2 class="mb-0">{{ total_formations }}</h2>
+                        <small>Formations disponibles</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Employés récemment embauchés</h5>
+                <a href="{% url 'ajouter_employe' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-plus-circle"></i> Ajouter un employé
+                </a>
+            </div>
+            <div class="card-body">
+                {% if employes_recents %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Matricule</th>
+                                <th>Nom complet</th>
+                                <th>Poste</th>
+                                <th>Date d'embauche</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for emp in employes_recents %}
+                            <tr>
+                                <td>{{ emp.matricule }}</td>
+                                <td>{{ emp.get_full_name }}</td>
+                                <td>{{ emp.poste }}</td>
+                                <td>{{ emp.date_embauche|date:"d/m/Y" }}</td>
+                                <td>
+                                    <a href="{% url 'detail_employe' emp.pk %}" class="btn btn-sm btn-info">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-3">Aucun employé enregistré</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

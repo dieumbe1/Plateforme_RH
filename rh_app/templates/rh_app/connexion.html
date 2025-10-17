@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}Connexion - Gestion RH{% endblock %}
+
+{% block content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-5">
+                <div class="card p-4">
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <i class="bi bi-person-lock" style="font-size: 3rem; color: #2563eb;"></i>
+                            <h2 class="mt-3">Connexion</h2>
+                            <p class="text-muted">Accédez à votre espace RH</p>
+                        </div>
+                        
+                        <form method="post">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="{{ form.username.id_for_label }}" class="form-label">{{ form.username.label }}</label>
+                                {{ form.username }}
+                            </div>
+                            <div class="mb-4">
+                                <label for="{{ form.password.id_for_label }}" class="form-label">{{ form.password.label }}</label>
+                                {{ form.password }}
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <div class="text-center mt-3">
+                            <a href="{% url 'accueil' %}" class="text-decoration-none">
+                                <i class="bi bi-arrow-left"></i> Retour à l'accueil
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

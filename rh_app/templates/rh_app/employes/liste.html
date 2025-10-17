@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Liste des employés{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Liste des employés</h2>
+        <a href="{% url 'ajouter_employe' %}" class="btn btn-primary"><i class="bi bi-plus"></i> Ajouter</a>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            {% if employes %}
+            <table class="table table-hover">
+                <thead><tr><th>Matricule</th><th>Nom</th><th>Poste</th><th>Actions</th></tr></thead>
+                <tbody>
+                {% for emp in employes %}
+                <tr>
+                    <td>{{ emp.matricule }}</td>
+                    <td>{{ emp.get_full_name }}</td>
+                    <td>{{ emp.poste }}</td>
+                    <td>
+                        <a href="{% url 'detail_employe' emp.pk %}" class="btn btn-sm btn-info"><i class="bi bi-eye"></i></a>
+                        <a href="{% url 'modifier_employe' emp.pk %}" class="btn btn-sm btn-warning"><i class="bi bi-pencil"></i></a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-center text-muted">Aucun employé</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

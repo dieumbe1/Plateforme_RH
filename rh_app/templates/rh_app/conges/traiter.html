@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4">
+    <h2>Traiter le congé</h2>
+    <div class="card"><div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <p>Employé: {{ conge.employe.get_full_name }}</p>
+            <p>Type: {{ conge.get_type_conge_display }}</p>
+            <textarea name="commentaire" class="form-control mb-2" placeholder="Commentaire"></textarea>
+            <button type="submit" name="action" value="APPROUVE" class="btn btn-success">Approuver</button>
+            <button type="submit" name="action" value="REFUSE" class="btn btn-danger">Refuser</button>
+        </form>
+    </div></div>
+</div>
+{% endblock %}

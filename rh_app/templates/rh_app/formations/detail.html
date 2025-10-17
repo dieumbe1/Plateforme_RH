@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4">
+    <h2>{{ formation.titre }}</h2>
+    <div class="card"><div class="card-body">
+        <p>{{ formation.description }}</p>
+        {% if not est_inscrit and places_disponibles > 0 %}
+        <a href="{% url 'inscrire_formation' formation.pk %}" class="btn btn-primary">S'inscrire</a>
+        {% endif %}
+    </div></div>
+</div>
+{% endblock %}

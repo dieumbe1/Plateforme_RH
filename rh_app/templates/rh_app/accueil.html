@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}Accueil - Gestion RH{% endblock %}
+
+{% block content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="card text-center p-5">
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <i class="bi bi-building" style="font-size: 5rem; color: #2563eb;"></i>
+                        </div>
+                        <h1 class="display-4 fw-bold mb-3">Gestion RH</h1>
+                        <p class="lead text-muted mb-4">
+                            Système de gestion des ressources humaines
+                        </p>
+                        
+                        {% if user.is_authenticated %}
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg">
+                                <i class="bi bi-speedometer2"></i> Accéder au tableau de bord
+                            </a>
+                            <a href="{% url 'logout' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-box-arrow-right"></i> Déconnexion
+                            </a>
+                        </div>
+                        {% else %}
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'login' %}" class="btn btn-primary btn-lg">
+                                <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                            </a>
+                        </div>
+                        {% endif %}
+
+                        <div class="row mt-5 text-start">
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-start">
+                                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                                    <div>
+                                        <h6 class="mb-0">Gestion des employés</h6>
+                                        <small class="text-muted">CRUD complet</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-start">
+                                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                                    <div>
+                                        <h6 class="mb-0">Formations</h6>
+                                        <small class="text-muted">Inscription et suivi</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-start">
+                                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                                    <div>
+                                        <h6 class="mb-0">Congés</h6>
+                                        <small class="text-muted">Demandes et validations</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-start">
+                                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                                    <div>
+                                        <h6 class="mb-0">Salaires & Contrats</h6>
+                                        <small class="text-muted">Gestion complète</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
