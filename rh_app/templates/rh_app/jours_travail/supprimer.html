@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block title %}Supprimer un Jour de Travail{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Supprimer un Jour de Travail</h3>
+                </div>
+                <div class="card-body">
+                    <p>Êtes-vous sûr de vouloir supprimer ce jour de travail ?</p>
+                    <div class="alert alert-warning">
+                        <strong>Attention :</strong> Cette action est irréversible.
+                    </div>
+                    <ul>
+                        <li><strong>Employé :</strong> {{ jour_travail.employe.get_full_name }}</li>
+                        <li><strong>Date :</strong> {{ jour_travail.date|date:"d/m/Y" }}</li>
+                        <li><strong>Heures travaillées :</strong> {{ jour_travail.heures_travaillees }}h</li>
+                        <li><strong>Heures supplémentaires :</strong> {{ jour_travail.heures_supplementaires }}h</li>
+                    </ul>
+                    <form method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Supprimer
+                        </button>
+                        <a href="{% url 'liste_jours_travail' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Annuler
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
