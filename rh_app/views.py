@@ -760,12 +760,18 @@ def supprimer_dossier_personnel(request, pk):
 @login_required
 def liste_jours_travail(request):
     employe = request.user.employe
-    
+
     if employe.role == 'RH':
-        jours_travail = JourTravail.objects.all()[:100]
+        # Récupérer les 5 premiers employés par date d'embauche
+        premiers_employes = Employe.objects.order_by('date_embauche')[:5]
+        jours_travail = []
+        for emp in premiers_employes:
+            # Récupérer les 5 derniers jours de travail pour chaque employé
+            derniers_jours = JourTravail.objects.filter(employe=emp).order_by('-date')[:5]
+            jours_travail.extend(derniers_jours)
     else:
-        jours_travail = JourTravail.objects.filter(employe=employe)[:50]
-    
+        jours_travail = JourTravail.objects.filter(employe=employe).order_by('-date')[:50]
+
     context = {'jours_travail': jours_travail}
     return render(request, 'rh_app/jours_travail/liste.html', context)
 
@@ -788,18 +794,53 @@ def ajouter_jour_travail(request):
     return render(request, 'rh_app/jours_travail/form.html', {'form': form, 'action': 'Ajouter'})
 
 @login_required
+def modifier_jour_travail(request, pk):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+
+    jour_travail = get_object_or_404(JourTravail, pk=pk)
+
+    if request.method == 'POST':
+        form = JourTravailForm(request.POST, instance=jour_travail)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Jour de travail modifié avec succès.')
+            return redirect('liste_jours_travail')
+    else:
+        form = JourTravailForm(instance=jour_travail)
+
+    return render(request, 'rh_app/jours_travail/form.html', {'form': form, 'action': 'Modifier'})
+
+@login_required
+def valider_jour_travail(request, pk):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+
+    jour_travail = get_object_or_404(JourTravail, pk=pk)
+    jour_travail.valide = not jour_travail.valide  # Toggle validation status
+    jour_travail.save()
+
+    status = "validé" if jour_travail.valide else "mis en attente"
+    messages.success(request, f'Jour de travail {status} avec succès.')
+    return redirect('liste_jours_travail')
+
+@login_required
 def supprimer_jour_travail(request, pk):
     employe = request.user.employe
     if employe.role != 'RH':
         messages.error(request, 'Accès non autorisé.')
         return redirect('dashboard')
-    
+
     jour_travail = get_object_or_404(JourTravail, pk=pk)
     if request.method == 'POST':
         jour_travail.delete()
         messages.success(request, f'Jour de travail supprimé avec succès.')
         return redirect('liste_jours_travail')
-    
+
     context = {'jour_travail': jour_travail}
     return render(request, 'rh_app/jours_travail/supprimer.html', context)
 

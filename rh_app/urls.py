@@ -60,5 +60,7 @@ urlpatterns = [
     # Jours de travail
     path('jours-travail/', views.liste_jours_travail, name='liste_jours_travail'),
     path('jours-travail/ajouter/', views.ajouter_jour_travail, name='ajouter_jour_travail'),
+    path('jours-travail/<int:pk>/modifier/', views.modifier_jour_travail, name='modifier_jour_travail'),
+    path('jours-travail/<int:pk>/valider/', views.valider_jour_travail, name='valider_jour_travail'),
     path('jours-travail/<int:pk>/supprimer/', views.supprimer_jour_travail, name='supprimer_jour_travail'),
 ]
