@@ -51,10 +51,15 @@
                                     <td>{{ jour.commentaire|truncatechars:30 }}</td>
                                     <td>
                                         {% if user.employe.role == 'RH' %}
-                                        <a href="{% url 'supprimer_jour_travail' jour.pk %}" class="btn btn-sm btn-danger" 
-                                           onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce jour de travail ?')">
-                                            <i class="fas fa-trash"></i>
-                                        </a>
+                                        <div class="btn-group" role="group">
+                                            <a href="#" class="btn btn-sm btn-warning" title="Modifier">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'supprimer_jour_travail' jour.pk %}" class="btn btn-sm btn-danger"
+                                               onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce jour de travail ?')" title="Supprimer">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
                                         {% endif %}
                                     </td>
                                 </tr>
