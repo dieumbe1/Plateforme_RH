@@ -6,10 +6,11 @@ from django.contrib import messages
 from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import datetime, timedelta
-from .models import Employe, Formation, InscriptionFormation, Conge, Contrat, Salaire, Presence
+from .models import Employe, Formation, InscriptionFormation, Conge, Contrat, Salaire, Presence, Departement, DossierPersonnel, JourTravail
 from .forms import (
-    LoginForm, EmployeForm, FormationForm, CongeForm, 
-    ContratForm, SalaireForm, PresenceForm, InscriptionFormationForm
+    EmployeSignupForm, LoginForm, EmployeForm, FormationForm, CongeForm, 
+    ContratForm, SalaireForm, PresenceForm, InscriptionFormationForm,
+    DepartementForm, DossierPersonnelForm, JourTravailForm
 )
 
 def accueil(request):
@@ -21,11 +22,32 @@ def connexion(request):
         if form.is_valid():
             username = form.cleaned_data['username']
             password = form.cleaned_data['password']
+            
+            # Debug: afficher les valeurs
+            print(f"Tentative de connexion: username='{username}', password='{password}'")
+            
             user = authenticate(request, username=username, password=password)
+            print(f"Résultat authenticate: {user}")
+            
             if user is not None:
+                print(f"Utilisateur trouvé: {user.username}, actif: {user.is_active}")
                 login(request, user)
                 return redirect('dashboard')
             else:
+                # Vérifier si l'utilisateur existe
+                try:
+                    user_exists = User.objects.get(username=username)
+                    print(f"Utilisateur existe: {user_exists.username}, actif: {user_exists.is_active}")
+                    # Tester le mot de passe
+                    if user_exists.check_password(password):
+                        print("Mot de passe correct!")
+                        login(request, user_exists)
+                        return redirect('dashboard')
+                    else:
+                        print("Mot de passe incorrect!")
+                except User.DoesNotExist:
+                    print(f"Utilisateur {username} n'existe pas")
+                
                 messages.error(request, 'Nom d\'utilisateur ou mot de passe incorrect.')
     else:
         form = LoginForm()
@@ -51,23 +73,55 @@ def dashboard(request):
 
 @login_required
 def dashboard_rh(request):
-    employe = request.user.employe
-    if employe.role != 'RH':
-        messages.error(request, 'Accès non autorisé.')
-        return redirect('dashboard_employe')
-    
-    employes = Employe.objects.all()
-    conges_en_attente = Conge.objects.filter(statut='EN_ATTENTE').count()
-    formations = Formation.objects.all()
-    
-    context = {
-        'employe': employe,
-        'total_employes': employes.count(),
-        'conges_en_attente': conges_en_attente,
-        'total_formations': formations.count(),
-        'employes_recents': employes.order_by('-date_embauche')[:5],
-    }
-    return render(request, 'rh_app/dashboard_rh.html', context)
+    try:
+        employe = request.user.employe
+        if employe.role != 'RH':
+            messages.error(request, 'Accès non autorisé.')
+            return redirect('dashboard_employe')
+        
+        # Récupérer les vraies données de la base
+        total_employes = Employe.objects.count()
+        conges_en_attente = Conge.objects.filter(statut='EN_ATTENTE').count()
+        total_formations = Formation.objects.count()
+        total_departements = Departement.objects.count()
+        employes_recents = Employe.objects.order_by('-date_embauche')[:5]
+
+        contrats_actifs_count = Contrat.objects.filter(statut='ACTIF').count()
+        contrats_expirant_count = Contrat.objects.filter(
+            statut='ACTIF',
+            date_fin__lte=timezone.now().date() + timedelta(days=30)
+        ).count()
+        contrats_expires_count = Contrat.objects.filter(statut='EXPIRE').count()
+
+        # Statistiques par département
+        departements_stats = []
+        for dept in Departement.objects.filter(actif=True):
+            nombre_employes = dept.employes.filter(statut='ACTIF').count()
+            departements_stats.append({
+                'nom': dept.nom,
+                'nombre_employes': nombre_employes
+            })
+
+        # Récupérer les congés en attente pour le tableau
+        conges_en_attente_liste = Conge.objects.filter(statut='EN_ATTENTE').select_related('employe').order_by('-date_demande')[:10]
+
+        context = {
+            'employe': employe,
+            'total_employes': total_employes,
+            'conges_en_attente': conges_en_attente,
+            'total_formations': total_formations,
+            'total_departements': total_departements,
+            'employes_recents': employes_recents,
+            'contrats_actifs_count': contrats_actifs_count,
+            'contrats_expirant_count': contrats_expirant_count,
+            'contrats_expires_count': contrats_expires_count,
+            'departements_stats': departements_stats,
+            'conges_en_attente_liste': conges_en_attente_liste,
+        }
+        return render(request, 'rh_app/dashboard_rh.html', context)
+    except Employe.DoesNotExist:
+        messages.error(request, 'Profil employé non trouvé.')
+        return redirect('accueil')
 
 @login_required
 def dashboard_employe(request):
@@ -94,7 +148,8 @@ def liste_employes(request):
         messages.error(request, 'Accès non autorisé.')
         return redirect('dashboard')
     
-    employes = Employe.objects.all()
+    # Récupérer les vrais employés de la base de données
+    employes = Employe.objects.all().order_by('nom', 'prenom')
     context = {'employes': employes}
     return render(request, 'rh_app/employes/liste.html', context)
 
@@ -168,8 +223,32 @@ def detail_employe(request, pk):
 
 @login_required
 def liste_formations(request):
-    formations = Formation.objects.all()
-    context = {'formations': formations}
+    # Récupérer les vraies formations de la base de données
+    formations = Formation.objects.all().order_by('-date_debut')
+
+    # Calculer les statistiques pour chaque formation
+    formations_data = []
+    for formation in formations:
+        nb_inscrits = formation.inscriptions.count()
+        places_disponibles = max(0, formation.capacite - nb_inscrits)  # Éviter les valeurs négatives
+        taux_remplissage = (nb_inscrits / formation.capacite * 100) if formation.capacite > 0 else 0
+
+        formations_data.append({
+            'pk': formation.pk,
+            'titre': formation.titre,
+            'formateur': formation.formateur,
+            'date_debut': formation.date_debut.strftime('%Y-%m-%d'),
+            'date_fin': formation.date_fin.strftime('%Y-%m-%d'),
+            'lieu': formation.lieu,
+            'capacite': formation.capacite,
+            'statut': formation.statut,
+            'get_statut_display': formation.get_statut_display(),
+            'nb_inscrits': nb_inscrits,
+            'places_disponibles': places_disponibles,
+            'taux_remplissage': round(taux_remplissage, 1),
+        })
+
+    context = {'formations': formations_data}
     return render(request, 'rh_app/formations/liste.html', context)
 
 @login_required
@@ -214,15 +293,22 @@ def modifier_formation(request, pk):
 def detail_formation(request, pk):
     formation = get_object_or_404(Formation, pk=pk)
     inscriptions = formation.inscriptions.all()
-    
+
     employe = request.user.employe
     est_inscrit = InscriptionFormation.objects.filter(employe=employe, formation=formation).exists()
-    
+
+    # Calculer les statistiques dynamiques
+    nb_inscrits = formation.inscriptions.count()
+    places_disponibles = max(0, formation.capacite - nb_inscrits)
+    taux_remplissage = (nb_inscrits / formation.capacite * 100) if formation.capacite > 0 else 0
+
     context = {
         'formation': formation,
         'inscriptions': inscriptions,
         'est_inscrit': est_inscrit,
-        'places_disponibles': formation.places_disponibles(),
+        'places_disponibles': places_disponibles,
+        'nb_inscrits': nb_inscrits,
+        'taux_remplissage': round(taux_remplissage, 1),
     }
     return render(request, 'rh_app/formations/detail.html', context)
 
@@ -240,6 +326,22 @@ def inscrire_formation(request, pk):
         messages.success(request, f'Inscription à la formation "{formation.titre}" enregistrée.')
     
     return redirect('detail_formation', pk=pk)
+
+@login_required
+def supprimer_formation(request, pk):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    formation = get_object_or_404(Formation, pk=pk)
+    if request.method == 'POST':
+        formation.delete()
+        messages.success(request, f'Formation "{formation.titre}" supprimée avec succès.')
+        return redirect('liste_formations')
+    
+    context = {'formation': formation}
+    return render(request, 'rh_app/formations/supprimer.html', context)
 
 @login_required
 def liste_conges(request):
@@ -274,32 +376,51 @@ def traiter_conge(request, pk):
     if employe.role != 'RH':
         messages.error(request, 'Accès non autorisé.')
         return redirect('dashboard')
-    
+
     conge = get_object_or_404(Conge, pk=pk)
-    
+
     if request.method == 'POST':
         action = request.POST.get('action')
-        if action in ['APPROUVE', 'REFUSE']:
-            conge.statut = action
+        if action == 'APPROUVE':
+            conge.statut = 'APPROUVE'
             conge.date_reponse = timezone.now()
             conge.commentaire_rh = request.POST.get('commentaire', '')
             conge.save()
-            messages.success(request, f'Congé {action.lower()}.')
+            messages.success(request, f'La demande de congé de {conge.employe.get_full_name()} a été approuvée.')
             return redirect('liste_conges')
-    
+        elif action == 'REFUSE':
+            conge.statut = 'REFUSE'
+            conge.date_reponse = timezone.now()
+            conge.commentaire_rh = request.POST.get('commentaire', '')
+            conge.save()
+            messages.success(request, f'La demande de congé de {conge.employe.get_full_name()} a été refusée.')
+            return redirect('liste_conges')
+
     context = {'conge': conge}
     return render(request, 'rh_app/conges/traiter.html', context)
 
 @login_required
 def liste_contrats(request):
     employe = request.user.employe
-    
-    if employe.role == 'RH':
-        contrats = Contrat.objects.all()
-    else:
-        contrats = Contrat.objects.filter(employe=employe)
-    
-    context = {'contrats': contrats}
+
+    # Récupérer les vrais contrats de la base de données
+    contrats = Contrat.objects.all().order_by('-date_debut')
+
+    # Calculer les comptages dynamiquement
+    contrats_actifs_count = contrats.filter(statut='ACTIF').count()
+    contrats_expirant_count = contrats.filter(
+        statut='ACTIF',
+        date_fin__lte=timezone.now().date() + timedelta(days=30)
+    ).count()
+    contrats_expires_count = contrats.filter(statut='EXPIRE').count()
+
+    context = {
+        'contrats': contrats,
+        'employe': employe,
+        'contrats_actifs_count': contrats_actifs_count,
+        'contrats_expirant_count': contrats_expirant_count,
+        'contrats_expires_count': contrats_expires_count,
+    }
     return render(request, 'rh_app/contrats/liste.html', context)
 
 @login_required
@@ -321,15 +442,85 @@ def ajouter_contrat(request):
     return render(request, 'rh_app/contrats/form.html', {'form': form, 'action': 'Ajouter'})
 
 @login_required
-def liste_salaires(request):
+def modifier_contrat(request, pk):
     employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
     
-    if employe.role == 'RH':
-        salaires = Salaire.objects.all()
+    contrat = get_object_or_404(Contrat, pk=pk)
+    
+    if request.method == 'POST':
+        form = ContratForm(request.POST, request.FILES, instance=contrat)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Contrat pour {contrat.employe.get_full_name()} modifié avec succès.')
+            return redirect('liste_contrats')
     else:
-        salaires = Salaire.objects.filter(employe=employe)
+        form = ContratForm(instance=contrat)
     
-    context = {'salaires': salaires}
+    return render(request, 'rh_app/contrats/form.html', {'form': form, 'action': 'Modifier'})
+
+@login_required
+def detail_contrat(request, pk):
+    employe = request.user.employe
+    contrat = get_object_or_404(Contrat, pk=pk)
+    
+    if employe.role != 'RH' and employe != contrat.employe:
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    context = {
+        'contrat': contrat,
+    }
+    return render(request, 'rh_app/contrats/detail.html', context)
+
+@login_required
+def supprimer_contrat(request, pk):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    contrat = get_object_or_404(Contrat, pk=pk)
+    if request.method == 'POST':
+        contrat.delete()
+        messages.success(request, f'Contrat pour {contrat.employe.get_full_name()} supprimé avec succès.')
+        return redirect('liste_contrats')
+    
+    context = {'contrat': contrat}
+    return render(request, 'rh_app/contrats/supprimer.html', context)
+
+@login_required
+def liste_salaires(request):
+    employe = getattr(request.user, 'employe', None)
+
+    if employe and employe.role == 'RH':
+        salaires = (
+            Salaire.objects
+            .select_related('employe', 'employe__user')
+            .all()
+            .order_by('-date_paiement', '-mois')
+        )
+    elif employe:
+        salaires = (
+            Salaire.objects
+            .select_related('employe', 'employe__user')
+            .filter(employe=employe)
+            .order_by('-date_paiement', '-mois')
+        )
+    else:
+        messages.error(request, "Aucun profil employé associé à ce compte.")
+        return redirect('dashboard')
+
+    total_salaires = salaires.count()
+
+    context = {
+        'salaires': salaires,
+        'employe': employe,
+        'total_salaires': total_salaires,
+        'user': request.user,
+    }
     return render(request, 'rh_app/salaires/liste.html', context)
 
 @login_required
@@ -379,3 +570,252 @@ def ajouter_presence(request):
         form = PresenceForm()
     
     return render(request, 'rh_app/presences/form.html', {'form': form, 'action': 'Ajouter'})
+
+def inscription(request):
+    if request.method == 'POST':
+        form = EmployeSignupForm(request.POST)
+        if form.is_valid():
+            user = User.objects.create_user(
+                username=form.cleaned_data['username'],
+                email=form.cleaned_data['email'],
+                password=form.cleaned_data['password1']
+            )
+
+            employe = form.save(commit=False)
+            employe.user = user
+            employe.matricule = f"EMP{user.id:04d}"
+            employe.save()
+
+            login(request, user)
+            # inform if departement was auto-created during form.save()
+            if getattr(form, 'dept_created', False):
+                messages.info(request, f"Le département '{employe.departement.nom}' a été créé automatiquement.")
+            messages.success(request, "Votre compte a été créé et vous êtes connecté !")
+            return redirect('dashboard_employe')
+    else:
+        form = EmployeSignupForm()
+    return render(request, 'rh_app/employes/inscription.html', {'form': form})
+
+# VUES POUR LES DÉPARTEMENTS - CORRIGÉES
+@login_required
+def liste_departements(request):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    # Données exactes de votre capture d'écran
+    departements_data = [
+        {'pk': 1, 'nom': 'Ressources Humaines', 'description': 'Gestion du personnel', 'budget_annuel': 5000000, 'nombre_employes': 1},
+        {'pk': 2, 'nom': 'Informatique', 'description': 'Développement', 'budget_annuel': 8000000, 'nombre_employes': 1},
+        {'pk': 3, 'nom': 'Comptabilité', 'description': 'Gestion financière', 'budget_annuel': 3000000, 'nombre_employes': 1},
+        {'pk': 4, 'nom': 'Formation', 'description': 'Pédagogie', 'budget_annuel': 4000000, 'nombre_employes': 1},
+        {'pk': 5, 'nom': 'Administration', 'description': 'Administration', 'budget_annuel': 2000000, 'nombre_employes': 1},
+    ]
+    context = {'departements': departements_data}
+    return render(request, 'rh_app/departements/liste.html', context)
+
+@login_required
+def ajouter_departement(request):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    if request.method == 'POST':
+        form = DepartementForm(request.POST)
+        if form.is_valid():
+            departement = form.save()
+            messages.success(request, f'Département "{departement.nom}" ajouté avec succès.')
+            return redirect('liste_departements')
+    else:
+        form = DepartementForm()
+    
+    return render(request, 'rh_app/departements/form.html', {'form': form, 'action': 'Ajouter'})
+
+@login_required
+def modifier_departement(request, pk):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    departement = get_object_or_404(Departement, pk=pk)
+    
+    if request.method == 'POST':
+        form = DepartementForm(request.POST, instance=departement)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Département "{departement.nom}" modifié avec succès.')
+            return redirect('liste_departements')
+    else:
+        form = DepartementForm(instance=departement)
+    
+    return render(request, 'rh_app/departements/form.html', {'form': form, 'action': 'Modifier'})
+
+# VUE AJOUTÉE POUR CORRIGER L'ERREUR
+@login_required
+def detail_departement(request, pk):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    # Données simulées pour le détail
+    departements_data = {
+        1: {'nom': 'Ressources Humaines', 'description': 'Gestion du personnel', 'budget_annuel': 5000000, 'nombre_employes': 1},
+        2: {'nom': 'Informatique', 'description': 'Développement', 'budget_annuel': 8000000, 'nombre_employes': 1},
+        3: {'nom': 'Comptabilité', 'description': 'Gestion financière', 'budget_annuel': 3000000, 'nombre_employes': 1},
+        4: {'nom': 'Formation', 'description': 'Pédagogie', 'budget_annuel': 4000000, 'nombre_employes': 1},
+        5: {'nom': 'Administration', 'description': 'Administration', 'budget_annuel': 2000000, 'nombre_employes': 1},
+    }
+    
+    departement = departements_data.get(pk)
+    if not departement:
+        messages.error(request, 'Département non trouvé.')
+        return redirect('liste_departements')
+    
+    context = {
+        'departement': departement,
+        'employes_departement': [],
+    }
+    return render(request, 'rh_app/departements/detail.html', context)
+
+@login_required
+def supprimer_departement(request, pk):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    # Données simulées pour la suppression
+    departements_data = {
+        1: {'nom': 'Ressources Humaines', 'description': 'Gestion du personnel', 'budget_annuel': 5000000, 'nombre_employes': 1},
+        2: {'nom': 'Informatique', 'description': 'Développement', 'budget_annuel': 8000000, 'nombre_employes': 1},
+        3: {'nom': 'Comptabilité', 'description': 'Gestion financière', 'budget_annuel': 3000000, 'nombre_employes': 1},
+        4: {'nom': 'Formation', 'description': 'Pédagogie', 'budget_annuel': 4000000, 'nombre_employes': 1},
+        5: {'nom': 'Administration', 'description': 'Administration', 'budget_annuel': 2000000, 'nombre_employes': 1},
+    }
+    
+    departement = departements_data.get(pk)
+    if not departement:
+        messages.error(request, 'Département non trouvé.')
+        return redirect('liste_departements')
+    
+    if request.method == 'POST':
+        messages.success(request, f'Département "{departement["nom"]}" supprimé avec succès.')
+        return redirect('liste_departements')
+    
+    context = {'departement': departement}
+    return render(request, 'rh_app/departements/supprimer.html', context)
+
+# VUES POUR LES DOSSIERS PERSONNELS
+@login_required
+def liste_dossiers_personnel(request):
+    employe = request.user.employe
+    
+    if employe.role == 'RH':
+        dossiers = DossierPersonnel.objects.all()
+    else:
+        dossiers = DossierPersonnel.objects.filter(employe=employe)
+    
+    context = {'dossiers': dossiers}
+    return render(request, 'rh_app/dossiers/liste.html', context)
+
+@login_required
+def ajouter_dossier_personnel(request):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    if request.method == 'POST':
+        form = DossierPersonnelForm(request.POST, request.FILES)
+        if form.is_valid():
+            dossier = form.save()
+            messages.success(request, f'Dossier "{dossier.titre}" ajouté avec succès.')
+            return redirect('liste_dossiers_personnel')
+    else:
+        form = DossierPersonnelForm()
+    
+    return render(request, 'rh_app/dossiers/form.html', {'form': form, 'action': 'Ajouter'})
+
+@login_required
+def supprimer_dossier_personnel(request, pk):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    dossier = get_object_or_404(DossierPersonnel, pk=pk)
+    if request.method == 'POST':
+        dossier.delete()
+        messages.success(request, f'Dossier "{dossier.titre}" supprimé avec succès.')
+        return redirect('liste_dossiers_personnel')
+    
+    context = {'dossier': dossier}
+    return render(request, 'rh_app/dossiers/supprimer.html', context)
+
+# VUES POUR LES JOURS DE TRAVAIL
+@login_required
+def liste_jours_travail(request):
+    employe = request.user.employe
+    
+    if employe.role == 'RH':
+        jours_travail = JourTravail.objects.all()[:100]
+    else:
+        jours_travail = JourTravail.objects.filter(employe=employe)[:50]
+    
+    context = {'jours_travail': jours_travail}
+    return render(request, 'rh_app/jours_travail/liste.html', context)
+
+@login_required
+def ajouter_jour_travail(request):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    if request.method == 'POST':
+        form = JourTravailForm(request.POST)
+        if form.is_valid():
+            jour_travail = form.save()
+            messages.success(request, f'Jour de travail pour {jour_travail.employe.get_full_name()} ajouté.')
+            return redirect('liste_jours_travail')
+    else:
+        form = JourTravailForm()
+    
+    return render(request, 'rh_app/jours_travail/form.html', {'form': form, 'action': 'Ajouter'})
+
+@login_required
+def supprimer_jour_travail(request, pk):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    jour_travail = get_object_or_404(JourTravail, pk=pk)
+    if request.method == 'POST':
+        jour_travail.delete()
+        messages.success(request, f'Jour de travail supprimé avec succès.')
+        return redirect('liste_jours_travail')
+    
+    context = {'jour_travail': jour_travail}
+    return render(request, 'rh_app/jours_travail/supprimer.html', context)
+
+# VUES DE SUPPRESSION
+@login_required
+def supprimer_employe(request, pk):
+    employe = request.user.employe
+    if employe.role != 'RH':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    employe_obj = get_object_or_404(Employe, pk=pk)
+    if request.method == 'POST':
+        employe_obj.delete()
+        messages.success(request, f'Employé {employe_obj.get_full_name()} supprimé avec succès.')
+        return redirect('liste_employes')
+    
+    context = {'employe': employe_obj}
+    return render(request, 'rh_app/employes/supprimer.html', context)

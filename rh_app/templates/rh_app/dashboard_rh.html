@@ -681,7 +681,7 @@
                         <div class="stat-icon-rh">
                             <i class="bi bi-file-earmark-text"></i>
                         </div>
-                        <div class="stat-value-rh">24</div>
+                        <div class="stat-value-rh">{{ contrats_actifs_count }}</div>
                         <div class="stat-label-rh">Contrats actifs</div>
                     </div>
                 </div>
@@ -713,25 +713,84 @@
 
                 <!-- Department Stats -->
                 <div class="department-stats">
+                    {% for dept in departements_stats %}
                     <div class="department-stat-card animate-card-rh">
-                        <div class="department-name">Informatique</div>
-                        <div class="department-count">15</div>
+                        <div class="department-name">{{ dept.nom }}</div>
+                        <div class="department-count">{{ dept.nombre_employes }}</div>
                         <small>employés</small>
                     </div>
-                    <div class="department-stat-card animate-card-rh">
-                        <div class="department-name">Marketing</div>
-                        <div class="department-count">8</div>
-                        <small>employés</small>
+                    {% endfor %}
+                </div>
+
+                <!-- Congés en attente Table -->
+                <div class="table-card-rh animate-card-rh">
+                    <div class="table-header-rh">
+                        <h5><i class="bi bi-calendar-x me-2"></i>Congés en attente</h5>
+                        <a href="{% url 'liste_conges' %}" class="btn btn-modern-rh btn-sm">
+                            <i class="bi bi-eye me-1"></i> Voir tous
+                        </a>
                     </div>
-                    <div class="department-stat-card animate-card-rh">
-                        <div class="department-name">Finance</div>
-                        <div class="department-count">12</div>
-                        <small>employés</small>
-                    </div>
-                    <div class="department-stat-card animate-card-rh">
-                        <div class="department-name">RH</div>
-                        <div class="department-count">6</div>
-                        <small>employés</small>
+                    <div class="table-body-rh">
+                        {% if conges_en_attente_liste %}
+                        <div class="table-responsive">
+                            <table class="table-modern-rh">
+                                <thead>
+                                    <tr>
+                                        <th>Employé</th>
+                                        <th>Type</th>
+                                        <th>Début</th>
+                                        <th>Fin</th>
+                                        <th>Durée</th>
+                                        <th>Statut</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for conge in conges_en_attente_liste %}
+                                    <tr>
+                                        <td>{{ conge.employe.get_full_name }}</td>
+                                        <td>{{ conge.get_type_conge_display }}</td>
+                                        <td>{{ conge.date_debut|date:"d/m/Y" }}</td>
+                                        <td>{{ conge.date_fin|date:"d/m/Y" }}</td>
+                                        <td>
+                                            {{ conge.nombre_jours }} j
+                                            {% if conge.nombre_jours and conge.nombre_jours > 30 %}
+                                                <small class="text-muted">(≈ {{ conge.nombre_jours|divisibleby:30|yesno:"1,0" }}{% if not conge.nombre_jours|divisibleby:30 %}{{ conge.nombre_jours|add:"15"|divisibleby:30 }}{% endif %})</small>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-warning text-dark">{{ conge.get_statut_display }}</span>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <form method="post" action="{% url 'traiter_conge' conge.pk %}" style="display: inline;" onsubmit="return confirm('Êtes-vous sûr de vouloir approuver cette demande de congé ?');">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="APPROUVE">
+                                                    <button type="submit" class="btn btn-sm btn-success" title="Valider">
+                                                        <i class="bi bi-check-lg"></i> Valider
+                                                    </button>
+                                                </form>
+                                                <form method="post" action="{% url 'traiter_conge' conge.pk %}" style="display: inline;" onsubmit="return confirm('Êtes-vous sûr de vouloir refuser cette demande de congé ?');">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="REFUSE">
+                                                    <button type="submit" class="btn btn-sm btn-danger" title="Non valider">
+                                                        <i class="bi bi-x-lg"></i> Non valider
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="empty-state-rh">
+                            <i class="bi bi-calendar-x"></i>
+                            <h5>Aucun congé en attente</h5>
+                            <p>Toutes les demandes de congé ont été traitées.</p>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
